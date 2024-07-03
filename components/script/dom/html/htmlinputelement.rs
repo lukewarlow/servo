@@ -2127,6 +2127,26 @@ impl HTMLInputElementMethods<crate::DomTypeHolder> for HTMLInputElement {
     fn SetCustomValidity(&self, error: DOMString, can_gc: CanGc) {
         self.validity_state(can_gc).set_custom_error_message(error);
     }
+
+    /// https://html.spec.whatwg.org/multipage/#dom-input-showpicker
+    fn ShowPicker(&self) -> ErrorResult {
+        // Step 1. If this is not mutable, then throw an "InvalidStateError" DOMException.
+        if !self.is_mutable() {
+            return Err(Error::InvalidState(None));
+        }
+
+        // TODO Step 2. If this's relevant settings object's origin is not same origin with this's relevant settings object's top-level origin, and this is a select element, or this's type attribute is not in the File Upload state or Color state, then throw a "SecurityError" DOMException.
+        // File and Color inputs are exempted from this check for historical reason: their input activation behavior also shows their pickers, and has never been guarded by an origin check.
+
+        // TODO Step 3. If this's relevant global object does not have transient activation, then throw a "NotAllowedError" DOMException.
+
+        // Step 4. If this is a select element, and this is not being rendered, then throw a "NotSupportedError" DOMException.
+
+        // Step 5. Show the picker, if applicable, for this.
+        self.show_the_picker_if_applicable();
+
+        Ok(())
+    }
 }
 
 fn radio_group_iter<'a>(
