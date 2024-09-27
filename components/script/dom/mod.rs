@@ -251,6 +251,7 @@ pub mod channelsplitternode;
 pub mod characterdata;
 pub mod client;
 pub mod closeevent;
+pub mod closewatcher;
 pub mod comment;
 pub mod compositionevent;
 pub mod console;
@@ -661,4 +662,6 @@ pub mod xrviewport;
 pub mod xrwebglbinding;
 pub mod xrwebgllayer;
 pub mod xrwebglsubimage;
+mod closewatchermanager;
+
 pub use self::webgl_extensions::ext::*;

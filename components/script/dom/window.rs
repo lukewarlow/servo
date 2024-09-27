@@ -155,6 +155,7 @@ use crate::task_source::{TaskSource, TaskSourceName};
 use crate::timers::{IsInterval, TimerCallback};
 use crate::webdriver_handlers::jsval_to_webdriver;
 use crate::{fetch, window_named_properties};
+use crate::dom::closewatchermanager::CloseWatcherManager;
 
 /// Current state of the window object
 #[derive(Clone, Copy, Debug, JSTraceable, MallocSizeOf, PartialEq)]
@@ -208,6 +209,7 @@ pub struct Window {
     session_storage: MutNullableDom<Storage>,
     local_storage: MutNullableDom<Storage>,
     status: DomRefCell<DOMString>,
+    close_watcher_manager: MutNullableDom<CloseWatcherManager>,
 
     /// For sending timeline markers. Will be ignored if
     /// no devtools server
@@ -549,6 +551,11 @@ impl Window {
     // see note at https://dom.spec.whatwg.org/#concept-event-dispatch step 2
     pub fn dispatch_event_with_target_override(&self, event: &Event) -> EventStatus {
         event.dispatch(self.upcast(), true)
+    }
+
+    // https://html.spec.whatwg.org/multipage/#close-watcher-manager
+    pub fn close_watcher_manager(&self) -> DomRoot<CloseWatcherManager> {
+        self.close_watcher_manager.or_init(!! CloseWatcherManager::new(self))
     }
 }
 
