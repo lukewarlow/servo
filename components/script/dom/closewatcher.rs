@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+use std::cell::Cell;
 use js::rust::HandleObject;
 
 use dom_struct::dom_struct;
@@ -23,8 +24,8 @@ use crate::test::Dom;
 #[dom_struct]
 pub struct CloseWatcher {
     eventtarget: EventTarget,
-    is_active: bool,
-    is_running_cancel_action: bool,
+    is_active: Cell<bool>,
+    is_running_cancel_action: Cell<bool>,
     window: Dom<Window>
 }
 
@@ -68,12 +69,14 @@ impl CloseWatcher {
     pub fn new_inherited(
         window: &Window,
     ) -> CloseWatcher {
-        CloseWatcher {
+        let close_watcher = CloseWatcher {
             eventtarget: EventTarget::new_inherited(),
-            is_active: true,
-            is_running_cancel_action: false,
+            is_active: Default::default(),
+            is_running_cancel_action: Default::default(),
             window: Dom::from_ref(window),
-        }
+        };
+        close_watcher.is_active.set(true);
+        return close_watcher
     }
 
     // https://html.spec.whatwg.org/multipage/interaction.html#establish-a-close-watcher
@@ -92,23 +95,23 @@ impl CloseWatcher {
         return close_watcher
     }
 
-    pub fn request_to_close(&mut self) -> bool {
+    pub fn request_to_close(&self) -> bool {
         // 1. If closeWatcher is not active, then return true.
-        if !self.is_active { return false; }
+        if !self.is_active.get() { return false; }
         // 2. If closeWatcher's is running cancel action is true, then return true.
-        if self.is_running_cancel_action { return true; }
+        if self.is_running_cancel_action.get() { return true; }
         // 3. Let window be closeWatcher's window.
         // 4. If window's associated Document is not fully active, then return true.
         if !self.window.Document().is_fully_active() { return true; }
         // 5. Let canPreventClose be true if window's close watcher manager's groups's size is less than window's close watcher manager's allowed number of groups, and window has history-action activation; otherwise false.
         let can_prevent_close = self.window.close_watcher_manager().can_prevent_close();
         // 6. Set closeWatcher's is running cancel action to true.
-        self.is_running_cancel_action = true;
+        self.is_running_cancel_action.set(true);
         // 7. Let shouldContinue be the result of running closeWatcher's cancel action given canPreventClose.
         let cancel_event = Event::new(self.window.upcast(), atom!("cancel"), EventBubbles::DoesNotBubble, if can_prevent_close { EventCancelable::Cancelable } else { EventCancelable::NotCancelable });
         let should_continue = cancel_event.fire(self.eventtarget.upcast()) == EventStatus::NotCanceled;
         // 8. Set closeWatcher's is running cancel action to false.
-        self.is_running_cancel_action = false;
+        self.is_running_cancel_action.set(false);
         // 9. If shouldContinue is false, then:
         if !should_continue {
             // 1. Assert: canPreventClose is true.
@@ -136,7 +139,7 @@ impl CloseWatcherMethods for CloseWatcher {
     // https://html.spec.whatwg.org/multipage/interaction.html#dom-closewatcher-close
     fn Close(&self) {
         // 1. If closeWatcher is not active, then return.
-        if !self.is_active { return; }
+        if !self.is_active.get() { return; }
         // 2. If closeWatcher's window's associated Document is not fully active, then return.
         if !self.window.Document().is_fully_active() { return; }
         // 3. Destroy closeWatcher.
@@ -152,6 +155,7 @@ impl CloseWatcherMethods for CloseWatcher {
         // 2. For each group of manager's groups: remove closeWatcher from group.
         // 3. Remove any item from manager's groups that is empty.
         self.window.close_watcher_manager().remove(self);
+        self.is_active.set(false);
     }
 
     event_handler!(cancel, GetOncancel, SetOncancel);
