@@ -2612,6 +2612,7 @@ impl Window {
             session_storage: Default::default(),
             local_storage: Default::default(),
             status: DomRefCell::new(DOMString::new()),
+            close_watcher_manager: Default::default(),
             parent_info,
             dom_static: GlobalStaticData::new(),
             js_runtime: DomRefCell::new(Some(runtime.clone())),
