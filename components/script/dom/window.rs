@@ -159,6 +159,7 @@ use crate::timers::{IsInterval, TimerCallback};
 use crate::unminify::unminified_path;
 use crate::webdriver_handlers::jsval_to_webdriver;
 use crate::{fetch, window_named_properties};
+use crate::dom::closewatchermanager::CloseWatcherManager;
 
 /// Current state of the window object
 #[derive(Clone, Copy, Debug, JSTraceable, MallocSizeOf, PartialEq)]
@@ -229,6 +230,7 @@ pub(crate) struct Window {
     session_storage: MutNullableDom<Storage>,
     local_storage: MutNullableDom<Storage>,
     status: DomRefCell<DOMString>,
+    close_watcher_manager: MutNullableDom<CloseWatcherManager>,
 
     /// For sending timeline markers. Will be ignored if
     /// no devtools server
@@ -578,6 +580,11 @@ impl Window {
         can_gc: CanGc,
     ) -> EventStatus {
         event.dispatch(self.upcast(), true, can_gc)
+    }
+
+    // https://html.spec.whatwg.org/multipage/#close-watcher-manager
+    pub fn close_watcher_manager(&self) -> DomRoot<CloseWatcherManager> {
+        self.close_watcher_manager.or_init(!! CloseWatcherManager::new(self))
     }
 }
 
@@ -2774,6 +2781,7 @@ impl Window {
             session_storage: Default::default(),
             local_storage: Default::default(),
             status: DomRefCell::new(DOMString::new()),
+            close_watcher_manager: Default::default(),
             parent_info,
             dom_static: GlobalStaticData::new(),
             js_runtime: DomRefCell::new(Some(runtime.clone())),
