@@ -196,6 +196,7 @@ use crate::timers::{IsInterval, TimerCallback};
 use crate::unminify::unminified_path;
 use crate::webdriver_handlers::{find_node_by_unique_id_in_document, jsval_to_webdriver};
 use crate::{fetch, window_named_properties};
+use crate::dom::closewatchermanager::CloseWatcherManager;
 
 /// A callback to call when a response comes back from the `ImageCache`.
 ///
@@ -304,6 +305,7 @@ pub(crate) struct Window {
     local_storage: MutNullableDom<Storage>,
     status: DomRefCell<DOMString>,
     trusted_types: MutNullableDom<TrustedTypePolicyFactory>,
+    close_watcher_manager: MutNullableDom<CloseWatcherManager>,
 
     /// The start of something resembling
     /// <https://html.spec.whatwg.org/multipage/#ongoing-navigation>
@@ -929,6 +931,12 @@ impl Window {
                     .to_sendable(),
             }),
         }
+    }
+
+    /// https://html.spec.whatwg.org/multipage/#close-watcher-manager
+    pub fn close_watcher_manager(&self) -> DomRoot<CloseWatcherManager> {
+        self.close_watcher_manager
+            .or_init(|| CloseWatcherManager::new(self, CanGc::note()))
     }
 }
 
@@ -3726,6 +3734,7 @@ impl Window {
             session_storage: Default::default(),
             local_storage: Default::default(),
             status: DomRefCell::new(DOMString::new()),
+            close_watcher_manager: Default::default(),
             parent_info,
             dom_static: GlobalStaticData::new(),
             js_runtime: DomRefCell::new(Some(runtime.clone())),
