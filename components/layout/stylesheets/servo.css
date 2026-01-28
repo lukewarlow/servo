@@ -79,7 +79,7 @@ input[type="button"],
 input[type="submit"],
 input[type="reset"],
 input[type="color"],
-input[type="file"]::before {
+input[type="file"]::file-selector-button {
   cursor: default;
   background: gainsboro;
   border-radius: 2px;
@@ -92,7 +92,7 @@ button,
 input[type="button"],
 input[type="submit"],
 input[type="reset"],
-input[type="file"]::before {
+input[type="file"]::file-selector-button {
   text-align: center;
 }
 
@@ -102,7 +102,7 @@ input[type="button"]:hover,
 input[type="submit"]:hover,
 input[type="reset"]:hover,
 input[type="color"]:hover,
-input[type="file"]:hover::before {
+input[type="file"]:hover::file-selector-button {
   background: lightgrey;
 }
 
@@ -112,7 +112,7 @@ input[type="button"]:active,
 input[type="submit"]:active,
 input[type="reset"]:active,
 input[type="color"]:active,
-input[type="file"]:active::before {
+input[type="file"]:active::file-selector-button {
   border-color: grey;
   background: gainsboro;
 }
@@ -123,7 +123,7 @@ input[type="button"]:focus,
 input[type="submit"]:focus,
 input[type="reset"]:focus,
 input[type="color"]:focus,
-input[type="file"]:focus::before {
+input[type="file"]:focus::file-selector-button {
   outline: none;
 }
 
@@ -133,16 +133,10 @@ input[type="button"]:disabled,
 input[type="submit"]:disabled,
 input[type="reset"]:disabled,
 input[type="color"]:disabled,
-input[type="file"]:disabled::before {
+input[type="file"]:disabled::file-selector-button {
   background: rgb(240, 240, 240);
   border-color: lightgrey;
   color: grey;
-}
-
-input[type="file"]::before {
-  content: "Choose File";
-  display: inline-block;
-  margin-inline-end: 0.25em;
 }
 
 input[type="file"] {
@@ -151,6 +145,11 @@ input[type="file"] {
   background: transparent;
   color: initial;
   padding-inline-end: 0.5em;
+}
+
+input[type="file"]::file-selector-button {
+  display: inline-block;
+  margin-inline-end: 0.25em;
 }
 
 input[type="color"] {

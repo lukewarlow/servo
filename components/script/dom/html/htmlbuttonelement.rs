@@ -8,6 +8,7 @@ use std::default::Default;
 use dom_struct::dom_struct;
 use html5ever::{LocalName, Prefix, local_name};
 use js::rust::HandleObject;
+use style::selector_parser::PseudoElement;
 use stylo_dom::ElementState;
 
 use crate::dom::activation::Activatable;
@@ -28,6 +29,7 @@ use crate::dom::html::htmlformelement::{
 };
 use crate::dom::node::{BindContext, Node, NodeTraits, UnbindContext};
 use crate::dom::nodelist::NodeList;
+use crate::dom::types::HTMLInputElement;
 use crate::dom::validation::{Validatable, is_barred_by_datalist_ancestor};
 use crate::dom::validitystate::{ValidationFlags, ValidityState};
 use crate::dom::virtualmethods::VirtualMethods;
@@ -389,7 +391,24 @@ impl Activatable for HTMLButtonElement {
                     owner.reset(ResetFrom::NotFromForm, can_gc);
                 }
             },
-            _ => (),
+            _ => {
+                let Some(pseudo_element) = self.upcast::<Node>().implemented_pseudo_element()
+                else {
+                    return;
+                };
+
+                if pseudo_element == PseudoElement::FileSelectorButton {
+                    let Some(parent) = self.upcast::<Node>().parent_in_flat_tree() else {
+                        return;
+                    };
+
+                    assert!(parent.is::<HTMLInputElement>());
+                    parent
+                        .downcast::<HTMLInputElement>()
+                        .unwrap()
+                        .activation_behavior(_event, target, can_gc);
+                }
+            },
         }
     }
 }

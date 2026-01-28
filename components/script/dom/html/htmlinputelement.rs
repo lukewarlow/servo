@@ -31,6 +31,7 @@ use layout_api::wrapper_traits::{ScriptSelection, SharedSelection};
 use script_bindings::codegen::GenericBindings::AttrBinding::AttrMethods;
 use script_bindings::codegen::GenericBindings::CharacterDataBinding::CharacterDataMethods;
 use script_bindings::codegen::GenericBindings::DocumentBinding::DocumentMethods;
+use script_bindings::codegen::GenericBindings::HTMLButtonElementBinding::HTMLButtonElementMethods;
 use script_bindings::domstring::parse_floating_point_number;
 use style::attr::AttrValue;
 use style::selector_parser::PseudoElement;
@@ -80,7 +81,7 @@ use crate::dom::node::{
 use crate::dom::nodelist::NodeList;
 use crate::dom::text::Text;
 use crate::dom::textcontrol::{TextControlElement, TextControlSelection};
-use crate::dom::types::{CharacterData, FocusEvent, MouseEvent};
+use crate::dom::types::{CharacterData, FocusEvent, HTMLButtonElement, MouseEvent};
 use crate::dom::validation::{Validatable, is_barred_by_datalist_ancestor};
 use crate::dom::validitystate::{ValidationFlags, ValidityState};
 use crate::dom::virtualmethods::VirtualMethods;
@@ -91,6 +92,7 @@ use crate::textinput::{ClipboardEventFlags, IsComposing, KeyReaction, Lines, Tex
 const DEFAULT_SUBMIT_VALUE: &str = "Submit";
 const DEFAULT_RESET_VALUE: &str = "Reset";
 const PASSWORD_REPLACEMENT_CHAR: char = '●';
+const FILE_INPUT_TEXT: &str = "Choose file";
 const DEFAULT_FILE_INPUT_VALUE: &str = "No file chosen";
 
 #[derive(Clone, JSTraceable, MallocSizeOf)]
@@ -313,11 +315,97 @@ impl ColorInputShadowTree {
 
 #[derive(Clone, JSTraceable, MallocSizeOf)]
 #[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
+/// Contains references to the elements in the shadow tree for `<input type=file>`.
+///
+/// The shadow tree consists of a button and a span for holding the status
+/// about selected files (none selected / filename of selected file / number selected respectively).
+struct FileInputShadowTree {
+    selector_button: Dom<Element>,
+    status_container: Dom<Element>,
+}
+
+impl FileInputShadowTree {
+    fn new(shadow_root: &Node, can_gc: CanGc) -> Self {
+        let document = shadow_root.owner_document();
+        let selector_button = Element::create(
+            QualName::new(None, ns!(html), local_name!("button")),
+            None,
+            &document,
+            ElementCreator::ScriptCreated,
+            CustomElementCreationMode::Asynchronous,
+            None,
+            can_gc,
+        );
+        selector_button
+            .downcast::<HTMLButtonElement>()
+            .unwrap()
+            .SetType(DOMString::from("button"));
+        selector_button
+            .upcast::<Node>()
+            .set_text_content_for_element(Some(DOMString::from(FILE_INPUT_TEXT)), can_gc);
+
+        shadow_root
+            .upcast::<Node>()
+            .AppendChild(selector_button.upcast::<Node>(), can_gc)
+            .unwrap();
+
+        selector_button
+            .upcast::<Node>()
+            .set_implemented_pseudo_element(PseudoElement::FileSelectorButton);
+
+        let status_text_container = Element::create(
+            QualName::new(None, ns!(html), local_name!("span")),
+            None,
+            &document,
+            ElementCreator::ScriptCreated,
+            CustomElementCreationMode::Asynchronous,
+            None,
+            can_gc,
+        );
+
+        shadow_root
+            .upcast::<Node>()
+            .AppendChild(status_text_container.upcast(), can_gc)
+            .unwrap();
+
+        Self {
+            selector_button: selector_button.as_traced(),
+            status_container: status_text_container.as_traced(),
+        }
+    }
+
+    fn update(&self, input_element: &HTMLInputElement, can_gc: CanGc) {
+        let status_text: String = match input_element.filelist.get() {
+            Some(filelist) => {
+                let length = filelist.Length();
+                if length == 0 {
+                    DEFAULT_FILE_INPUT_VALUE.into()
+                } else if length == 1 {
+                    match filelist.Item(0) {
+                        Some(file) => file.name().to_string(),
+                        None => DEFAULT_FILE_INPUT_VALUE.into(),
+                    }
+                } else {
+                    format!("{} files selected.", length)
+                }
+            },
+            None => DEFAULT_FILE_INPUT_VALUE.into(),
+        };
+
+        self.status_container
+            .upcast::<Node>()
+            .set_text_content_for_element(Some(DOMString::from(status_text)), can_gc);
+    }
+}
+
+#[derive(Clone, JSTraceable, MallocSizeOf)]
+#[cfg_attr(crown, crown::unrooted_must_root_lint::must_root)]
 #[non_exhaustive]
 enum InputElementShadowTree {
     ColorInput(ColorInputShadowTree),
     TextInput(TextInputWidgetShadowTree),
     TextValue(TextValueShadowTree),
+    FileInput(FileInputShadowTree),
     // TODO: Add shadow trees for other input types (range etc) here
 }
 
@@ -332,6 +420,9 @@ impl InputElementShadowTree {
         if input_element.input_type() == InputType::Color {
             return Self::ColorInput(ColorInputShadowTree::new(shadow_root, can_gc));
         }
+        if input_element.input_type() == InputType::File {
+            return Self::FileInput(FileInputShadowTree::new(shadow_root, can_gc));
+        }
         if input_element.renders_as_text_input_widget() {
             return Self::TextInput(TextInputWidgetShadowTree::new(shadow_root, can_gc));
         }
@@ -341,6 +432,9 @@ impl InputElementShadowTree {
     fn is_valid_for_element(&self, input_element: &HTMLInputElement) -> bool {
         if input_element.input_type() == InputType::Color {
             return matches!(self, InputElementShadowTree::ColorInput(_));
+        }
+        if input_element.input_type() == InputType::File {
+            return matches!(self, InputElementShadowTree::FileInput(_));
         }
         if input_element.renders_as_text_input_widget() {
             return matches!(self, InputElementShadowTree::TextInput(_));
@@ -357,6 +451,9 @@ impl InputElementShadowTree {
     fn update(&self, input_element: &HTMLInputElement, can_gc: CanGc) {
         match self {
             InputElementShadowTree::ColorInput(shadow_tree) => {
+                shadow_tree.update(input_element, can_gc)
+            },
+            InputElementShadowTree::FileInput(shadow_tree) => {
                 shadow_tree.update(input_element, can_gc)
             },
             InputElementShadowTree::TextInput(shadow_tree) => shadow_tree.update(input_element),
@@ -1468,20 +1565,6 @@ impl HTMLInputElement {
             InputType::Image |
             InputType::Hidden |
             InputType::Range => "".into(),
-            InputType::File => {
-                let Some(filelist) = self.filelist.get() else {
-                    return DEFAULT_FILE_INPUT_VALUE.into();
-                };
-                let length = filelist.Length();
-                if length > 1 {
-                    return format!("{length} files").into();
-                }
-
-                let Some(first_item) = filelist.Item(0) else {
-                    return DEFAULT_FILE_INPUT_VALUE.into();
-                };
-                first_item.name().to_string().into()
-            },
             _ => {
                 if let Some(attribute_value) = self
                     .upcast::<Element>()
